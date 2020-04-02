@@ -4,12 +4,6 @@ from jax.experimental.optimizers import adam
 import jax
 import jax.numpy as jnp
 
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# import torch.optim as optim
-# from torch.distributions import Categorical
-
 # hparam
 learning_rate = 0.0002
 gamma = 0.98
@@ -24,7 +18,7 @@ class Policy(hk.Module):
                 [hk.Flatten(),
                  hk.Linear(128), jax.nn.relu,
                  hk.Linear(2), jax.nn.softmax])
-        self.optimizer = adam(learning_rate, b1=0.9, b2=0.999, eps=1e-8)
+        self.optimizer = adam(step_size=learning_rate)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
