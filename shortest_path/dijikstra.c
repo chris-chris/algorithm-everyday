@@ -1,6 +1,6 @@
-#include <cstdio>
+#include <stdio.h>
 #include <vector>
-#include <algorithm>
+#include <algorithm.h>
 
 using namespace std;
 
@@ -50,3 +50,4 @@ int main(){
   printf("%d\n", Table[end2]);
   return 0;
 }
+

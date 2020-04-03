@@ -13,11 +13,14 @@ for i in range(m):
   graph[a].append(b)
   graph[b].append(a)
 
+begin, end = input().split()
+begin, end = int(begin), int(end)
+
 for i in range(n):
   table[i] = 999999999
   check[i] = False
 
-table[0] = 0
+table[begin] = 0
 
 # for i = 0 ~ n
 for i in range(n):
@@ -33,4 +36,4 @@ for i in range(n):
     if table[node] > table[minIdex] + 1:
       table[node] = table[minIdex] + 1
 
-print(table[n-1])
+print(table[end])
