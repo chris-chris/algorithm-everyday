@@ -1,70 +1,49 @@
+import tensorflow as tf
+import numpy as np
 import gym
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.distributions import Categorical
+import collections
+import copy
 
-# hparam
-learning_rate = 0.0002
-gamma = 0.98
+model = tf.keras.Sequential([
+    tf.keras.layers.Input((4,)),
+    tf.keras.layers.Dense(32, activation='relu'),
+    tf.keras.layers.Dense(2, activation='softmax')])
+model.build()
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
+compute_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
+Transition = collections.namedtuple("Transition", ["step", "state", "action", "reward", "next_state", "done"])
 
-class Policy(nn.Module):
-    def __init__(self):
-        super(Policy, self).__init__()
-        self.data = []
+env = gym.make('CartPole-v0')
+episodes = 20000
+discount_factor = 0.8
 
-        self.fc1 = nn.Linear(4, 128)
-        self.fc2 = nn.Linear(128, 2)
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+for i_episode in range(episodes):
+    s = env.reset()
+    episode = []
+    total_reward = 0
+    step = 0
+    done = False
+    while not done:
+        s = tf.reshape(s, (1,4))
+        logits = model(s)
+        a_dist = logits.numpy()
+        a = np.random.choice(np.arange(len(a_dist[0])), p=a_dist[0])
+        n_s, r, done, _ = env.step(a)
+        step += 1
+        state = tf.squeeze(s)
+        episode.append(Transition( step=step,
+                                   state=state, action=a, reward=r, next_state=n_s, done=done))
+        s = copy.deepcopy(n_s)
+        total_reward += r
+    if i_episode % 100 == 0:
+        print(f"episode: {i_episode} reward: {total_reward}")
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.softmax(self.fc2(x), dim=0)
-        return x
-
-    def put_data(self, item):
-        self.data.append(item)
-
-    def train_net(self):
-        R = 0
-        self.optimizer.zero_grad()
-        for r, prob in self.data[::-1]:
-            R = r + gamma * R
-            loss = -torch.log(prob) * R
-            loss.backward()
-        self.optimizer.step()
-        self.data = []
-
-
-def main():
-    env = gym.make('CartPole-v1')
-    pi = Policy()
-    score = 0.0
-    print_interval = 20
-
-    for n_epi in range(10000):
-        s = env.reset()
-        done = False
-
-        while not done:
-            prob = pi(torch.from_numpy(s).float())
-            m = Categorical(prob)
-            a = m.sample()
-            s_prime, r, done, info = env.step(a.item())
-            pi.put_data((r, prob[a]))
-            s = s_prime
-            score += r
-
-        pi.train_net()
-
-        if n_epi % print_interval == 0 and n_epi != 0:
-            print("# of episode: {}, avg score: {}".format(n_epi, score/print_interval))
-            score = 0.0
-
-    env.close()
-
-
-if __name__ == "__main__":
-    main()
+    for t, transition in enumerate(episode):
+        total_return = sum(discount_factor**i * t.reward for i, t in enumerate(episode[t:]))
+        with tf.GradientTape() as tape:
+            state = tf.reshape(transition.state, (1,4))
+            logits = model(state, training=True)
+            loss = compute_loss(transition.action, logits, sample_weight=tf.stop_gradient(total_return))
+        grads = tape.gradient(loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
